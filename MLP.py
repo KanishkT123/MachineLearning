@@ -29,7 +29,7 @@ def dtanh(y):
 
 class MLP(object):
 
-	def __init__(self, inputN, hiddenL, outputN):
+	def __init__(self, inputN, hiddenL, outputN, learning):
 
 		"""
 		inputN: Input neurons
@@ -55,6 +55,12 @@ class MLP(object):
 		self.ch = np.asarray([np.zeros((self.hiddenL[x], self.hiddenL[x+1])) for x in range(len(self.hiddenL)-1)])
 		self.co - np.zeros((self.hiddenL[-1], self.outputN))
 
+		#array for storing output deltas
+		#dummy for input, then hidden, then output all as numpy arrays
+		self.sensitivity = np.asarray([np.asarray([])] + [np.zeros(layer) for layer in self.hiddenL] + [np.zeros(outputN)])
+
+		#learning rate
+		self.learning = learning
 
 	def feedForward(self, inputs):
 		if len(inputs) != self.inputN -1:
@@ -92,52 +98,37 @@ class MLP(object):
 		error = error * 0.5
 		return sum(error)
 
-	def backPropagate(self, targets, learning):
+	def backPropagate(self, targets):
 		"""
 		targets: the y values to be used for learning
-		learning: The Learning rate for the backprop algorithm
 		returns updated weights and the current error
 		"""
 
 		if len(targets) != self.outputN:
 			raise ValueError("Given target length: " + str(len(targets))
 				+ " Expected: " + str(self.outputN))
-		
+		 	
 		#Calculating the direction in which the output needs to change
 		#-(target-out) = out - target
 		errorAgainstOutput = self.ao - targets
-		outputDeltas = errorAgainstOutput * dsigmoid(self.ao)
+		self.sensitivity[-1] = errorAgainstOutput * dsigmoid(self.ao)
 				
-		#calculating error values for last hidden layer
-		#Hidden deltas is a nested list which has deltas for all hidden layers
-		hidden_deltas = [np.zeros(x) for x in self.hiddenL]
 
-		for neuron in range(self.hiddenL[-1]):
-		 	error = 0.0
+		#Iterating backwards over all the hidden layers
+		for layer in range(len(hiddenL), 0, -1):
+			for neuron in range(hiddenL[layer]):
+				factor = dsigmoid(self.ah[layer][neuron])
+				sum = 0
+				#Different rules if it's the last hidden layer or not
+				if layer == len(hiddenL) - 1:
+					for nextNeuron in range(outputN):
+						sum += self.wo[neuron][nextNeuron]*self.sensitivity[-1][nextNeuron]
+				else:
+					for nextNeuron in range(hiddenL[layer+1]):
+						sum += self.wh[neuron][nextNeuron]*self.sensitivity[layer+1][nextNeuron]
+				self.sensitivity[layer] = sum*factor
 
-			for nextNeuron in range(self.outputN):
-				error += output_deltas[nextNeuron] * self.wo[neuron][nextNeuron]
-
-			hidden_deltas[-1][neuron] = dsigmoid(self.ah[-1][neuron]) * error
-
-		#update weights for hidden to output
-		for neuron in range(self.hiddenL[-1]):
-
-			for nextNeuron in range(self.output):
-				change = output_deltas[nextNeuron] * self.ah[-1][neuron]
-				self.wo[neuron][nextNeuron] -= learning * change + self.co[neuron][nextNeuron]
-				self.co[neuron][nextNeuron] = change
-
-		#calculating error values for remaining hidden layers
-		#Don't need the last layer, need to go backwards
-		for layer in range(len(self.hiddenL)-1)[::-1]:
-			
-			for neuron in range(self.hiddenL[layer]):
-				error = 0.0
-
-				for nextNeuron in range(self.hiddenL[layer+1]):
-					error += hidden_deltas[layer+1][nextNeuron] * self.wh[layer][neuron][nextNeuron]
-
+	def update(self):
 
 
 
